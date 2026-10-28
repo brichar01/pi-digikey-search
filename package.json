@@ -1,0 +1,47 @@
+{
+  "name": "pi-digikey-product-search",
+  "version": "0.1.0",
+  "description": "Digi-Key ProductSearch v4 CLI and pi extension with an iterative keyword → filter-options → parametric-filter skill.",
+  "type": "module",
+  "license": "MIT",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "digikey",
+    "electronics",
+    "part-search"
+  ],
+  "bin": {
+    "digikey-search": "./bin/digikey-search"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "extensions/",
+    "skills/",
+    "index.ts",
+    "install.sh",
+    "README.md",
+    ".env.example"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/digikey.ts"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  },
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check lib/digikey.mjs && node --check bin/digikey-search"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
