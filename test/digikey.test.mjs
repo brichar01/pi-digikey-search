@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, test } from "node:test";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import {
   DigiKeyApiError,
   DigiKeyConfigError,
@@ -11,6 +13,7 @@ import {
   runCli,
   searchKeyword,
 } from "../lib/digikey.mjs";
+import { createServer } from "../mcp/server.mjs";
 
 const ENV = {
   DIGIKEY_CLIENT_ID: "client-id",
@@ -529,5 +532,50 @@ describe("CLI", () => {
     });
     assert.equal(code, 2);
     assert.match(stderr, /keywords/);
+  });
+});
+
+describe("MCP server", () => {
+  beforeEach(() => clearTokenCache());
+
+  async function connect(options) {
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await createServer(options).connect(serverTransport);
+    const client = new Client({ name: "test", version: "0.0.0" });
+    await client.connect(clientTransport);
+    return client;
+  }
+
+  test("lists digikey_search with the shared schemas", async () => {
+    const client = await connect({ env: ENV });
+    const { tools } = await client.listTools();
+    assert.deepEqual(tools.map((tool) => tool.name), ["digikey_search"]);
+    assert.deepEqual(tools[0].inputSchema.required, ["keywords"]);
+    assert.equal(tools[0].annotations.readOnlyHint, true);
+    await client.close();
+  });
+
+  test("returns text and structured content that matches the output schema", async () => {
+    const { calls, fetchImpl } = makeFetch();
+    const client = await connect({ env: ENV, fetchImpl });
+    const result = await client.callTool({
+      name: "digikey_search",
+      arguments: { keywords: "codec", manufacturerIds: ["296"] },
+    });
+
+    assert.equal(result.isError, undefined);
+    assert.match(result.content[0].text, /PCM1860/);
+    assert.equal(result.structuredContent.returnedProductCount, 1);
+    const body = JSON.parse(calls[1].init.body);
+    assert.equal(body.FilterOptionsRequest.MarketPlaceFilter, "ExcludeMarketPlace");
+    await client.close();
+  });
+
+  test("reports configuration errors as tool errors", async () => {
+    const client = await connect({ env: {} });
+    const result = await client.callTool({ name: "digikey_search", arguments: { keywords: "codec" } });
+    assert.equal(result.isError, true);
+    assert.match(result.content[0].text, /DIGIKEY_CLIENT_ID/);
+    await client.close();
   });
 });

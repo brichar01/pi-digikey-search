@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 #
-# Install the Digi-Key part-search pi extension and CLI.
+# Install the Digi-Key part-search pi extension, CLI and, on request, the
+# Claude Code plugin.
 #
 # Defaults:
 #   extension:  ${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/extensions/digikey-product-search
 #   CLI:        ${PREFIX:-$HOME/.local/bin}/digikey-search
+#   Claude:     off; --claude adds this checkout as a local plugin marketplace
 #
 # The extension advertises its bundled skill through resources_discover, so no
 # separate skill symlink is needed.
@@ -15,6 +17,7 @@ AGENT_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 BIN_DIR="${PREFIX:-$HOME/.local/bin}"
 DO_EXTENSION=1
 DO_CLI=1
+DO_CLAUDE=0
 COPY=0
 FORCE=0
 UNINSTALL=0
@@ -30,8 +33,12 @@ Options:
   --force            replace an existing non-matching install
   --no-extension     do not install the pi extension
   --no-cli           do not install the digikey-search CLI
+  --claude           also install the Claude Code plugin (MCP tool + skill)
   --uninstall        remove the installed extension and CLI
   -h, --help         show this help
+
+Claude Code only:
+  ./install.sh --claude --no-extension --no-cli
 
 Environment:
   PI_CODING_AGENT_DIR   pi config directory override
@@ -76,6 +83,10 @@ while [ "$#" -gt 0 ]; do
       DO_CLI=0
       shift
       ;;
+    --claude)
+      DO_CLAUDE=1
+      shift
+      ;;
     --uninstall)
       UNINSTALL=1
       shift
@@ -94,6 +105,18 @@ done
 
 EXT_TARGET="$AGENT_DIR/extensions/digikey-product-search"
 CLI_TARGET="$BIN_DIR/digikey-search"
+# Both names match .claude-plugin/marketplace.json and .claude-plugin/plugin.json.
+CLAUDE_MARKETPLACE="digikey-search"
+CLAUDE_PLUGIN="digikey-search@$CLAUDE_MARKETPLACE"
+
+if [ "$DO_CLAUDE" -eq 1 ] && ! command -v claude >/dev/null 2>&1; then
+  echo "error: --claude needs the claude CLI on PATH." >&2
+  exit 1
+fi
+
+claude_marketplace_present() {
+  claude plugin marketplace list 2>/dev/null | grep -qw "$CLAUDE_MARKETPLACE"
+}
 
 if ! command -v node >/dev/null 2>&1; then
   echo "error: node is required (Node 20+)." >&2
@@ -104,6 +127,14 @@ NODE_MAJOR="$(node -p 'Number(process.versions.node.split(".")[0])')"
 if [ "$NODE_MAJOR" -lt 20 ]; then
   echo "warning: Node 20+ is recommended; found $(node --version)." >&2
 fi
+
+remove_claude() {
+  claude plugin uninstall "$CLAUDE_PLUGIN" || true
+  if claude_marketplace_present; then
+    claude plugin marketplace remove "$CLAUDE_MARKETPLACE"
+  fi
+  echo "removed Claude Code plugin: $CLAUDE_PLUGIN"
+}
 
 remove_install() {
   if [ -L "$EXT_TARGET" ]; then
@@ -132,7 +163,10 @@ remove_install() {
 }
 
 if [ "$UNINSTALL" -eq 1 ]; then
-  remove_install
+  if [ "$DO_EXTENSION" -eq 1 ] || [ "$DO_CLI" -eq 1 ]; then
+    remove_install
+  fi
+  [ "$DO_CLAUDE" -eq 1 ] && remove_claude
   echo "Uninstalled. Run /reload in pi if it is currently running."
   exit 0
 fi
@@ -188,6 +222,16 @@ if [ "$DO_CLI" -eq 1 ]; then
   esac
 fi
 
+if [ "$DO_CLAUDE" -eq 1 ]; then
+  if claude_marketplace_present; then
+    claude plugin marketplace update "$CLAUDE_MARKETPLACE"
+  else
+    claude plugin marketplace add "$ROOT"
+  fi
+  claude plugin install "$CLAUDE_PLUGIN" --scope user
+  echo "installed Claude Code plugin: $CLAUDE_PLUGIN"
+fi
+
 cat <<EOF
 
 Installed.
@@ -198,6 +242,8 @@ Next steps:
        export DIGIKEY_CLIENT_SECRET="..."
   2. Verify the CLI:
        digikey-search --keywords "ceramic capacitor" --limit 3 --format text
-  3. Open pi and run /reload, then ask for a Digi-Key part or run:
+  3. pi: run /reload, then ask for a Digi-Key part or run:
        /skill:digikey-part-search
+     Claude Code: restart it. The first MCP start runs npm install in the
+     plugin copy. Check the server with /mcp.
 EOF

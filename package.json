@@ -1,24 +1,30 @@
 {
   "name": "pi-digikey-product-search",
   "version": "0.1.0",
-  "description": "Digi-Key ProductSearch v4 CLI and pi extension with an iterative keyword → filter-options → parametric-filter skill.",
+  "description": "Digi-Key ProductSearch v4 CLI, pi extension and MCP server with an iterative keyword → filter-options → parametric-filter skill.",
   "type": "module",
   "license": "MIT",
   "keywords": [
     "pi-package",
     "pi-extension",
+    "mcp",
+    "claude-code-plugin",
     "digikey",
     "electronics",
     "part-search"
   ],
   "bin": {
-    "digikey-search": "./bin/digikey-search"
+    "digikey-search": "./bin/digikey-search",
+    "digikey-search-mcp": "./mcp/server.mjs"
   },
   "files": [
     "bin/",
     "lib/",
     "extensions/",
+    "mcp/",
     "skills/",
+    ".claude-plugin/",
+    ".mcp.json",
     "index.ts",
     "install.sh",
     "README.md",
@@ -34,7 +40,10 @@
   },
   "scripts": {
     "test": "node --test",
-    "check": "node --check lib/digikey.mjs && node --check bin/digikey-search"
+    "check": "node --check lib/digikey.mjs && node --check lib/tool.mjs && node --check mcp/server.mjs && node --check bin/digikey-search"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",

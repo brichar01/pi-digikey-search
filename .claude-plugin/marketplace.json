@@ -1,0 +1,13 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "digikey-search",
+  "description": "Digi-Key part search for Claude Code.",
+  "owner": { "name": "Ben Richards" },
+  "plugins": [
+    {
+      "name": "digikey-search",
+      "description": "Digi-Key ProductSearch v4 MCP tool and part-search skill.",
+      "source": "./"
+    }
+  ]
+}

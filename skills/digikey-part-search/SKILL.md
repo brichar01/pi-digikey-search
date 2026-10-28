@@ -118,6 +118,16 @@ from `productParameterHints.categories`, `topCategories[].category.categoryId`,
 or `product.category.childCategories[].categoryId`. Parent categories fail with
 `Parametric Filtering Not Support at Parent Category Level`.
 
+#### Electrical properties beat intent tags
+
+Filter and judge on properties of the part itself: voltage ratings,
+capacitance, channel count, data interface, package. Tags such as
+`Applications` are marketing hints, tagged inconsistently. For example,
+`USBLC6-4SC6`, a USB ESD array, is tagged `Ethernet`. Do not filter on a tag
+when an electrical parameter can express the need, and never reject a part
+because of its tag. When the two disagree, the electrical parameter or the
+datasheet wins.
+
 #### Range parameters
 
 `values[].rangeFilterType` is `Min`, `Max`, or `Range` when the parameter is a

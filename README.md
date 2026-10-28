@@ -1,7 +1,9 @@
-# Digi-Key ProductSearch for pi
+# Digi-Key ProductSearch for pi and Claude Code
 
-A small, dependency-free Digi-Key ProductSearch v4 client, CLI, and pi
-extension. It implements the repeated keyword-search workflow:
+A small Digi-Key ProductSearch v4 client and CLI, with a pi extension and an MCP
+server for Claude Code. Both agents share one tool definition
+(`lib/tool.mjs`) and one skill. The client and CLI have no dependencies. The MCP
+server needs `@modelcontextprotocol/sdk`. The tool implements the repeated keyword-search workflow:
 
 1. Search broadly by keyword.
 2. Read the `filterOptions` Digi-Key returns.
@@ -30,6 +32,8 @@ KeywordSearch returns **StandardPricing only**; MyPricing is not available from
 this endpoint.
 
 ## Install
+
+### pi
 
 ```bash
 ./install.sh
@@ -63,6 +67,32 @@ You can also install the directory as a pi package:
 ```bash
 pi install /path/to/digikey-product-search
 ```
+
+### Claude Code
+
+The repository is a Claude Code plugin and its own one-plugin marketplace. The
+plugin carries the `digikey` MCP server and the `digikey-part-search` skill.
+
+```bash
+./install.sh --claude --no-extension --no-cli
+```
+
+This adds the checkout as a local marketplace and installs
+`digikey-search@digikey-search` at user scope. To do the same from inside Claude
+Code, or from a git remote:
+
+```text
+/plugin marketplace add /path/to/digikey-product-search
+/plugin install digikey-search@digikey-search
+```
+
+Claude Code copies the plugin into its cache without `node_modules`. The first
+server start runs `npm install` in that copy, so it needs `npm` and registry
+access once. The server reads the same `DIGIKEY_*` variables, so export them in
+the shell that starts Claude Code. Check the server with `/mcp`. Claude Code
+names the tool `mcp__plugin_digikey-search_digikey__digikey_search`.
+
+Remove it with `./install.sh --uninstall --claude --no-extension --no-cli`.
 
 ## Credentials
 
@@ -132,10 +162,11 @@ website filters. Use a **child category**, not a parent category, for
 
 Filter IDs must come from a previous response. Never invent them.
 
-## pi tool
+## Tool
 
-The extension registers `digikey_search`. It is a normal direct tool and is also
-callable from codemode as `tools.digikey_search(...)`.
+pi and the MCP server both register `digikey_search` from `lib/tool.mjs`. In pi it
+is a normal direct tool and is also callable from codemode as
+`tools.digikey_search(...)`.
 
 ```json
 {
@@ -167,8 +198,8 @@ The text output is a compact summary. It prints product-derived filter hints
 when Digi-Key does not return parametric filter options. Pass
 `showParameterIds: true` to include parameter/value IDs on each product's text
 `params:` line. The full structured object is returned in `structuredContent`,
-so codemode scripts can search every filter value without raising display
-limits.
+so codemode scripts and MCP clients can search every filter value without
+raising display limits.
 
 ### Codemode example
 
@@ -197,8 +228,9 @@ return refined.products;
 - worked examples: a 50 V high-availability capacitor and a 192 kHz SPI codec
   from TI or Analog Devices
 
-Load it explicitly with `/skill:digikey-part-search`, or let pi select it for a
-multi-constraint part request.
+Load it explicitly with `/skill:digikey-part-search` in pi or
+`/digikey-search:digikey-part-search` in Claude Code, or let the agent select it
+for a multi-constraint part request.
 
 ## Errors
 
@@ -236,10 +268,13 @@ API/network.
 ## Development
 
 ```bash
+npm install --omit=peer
 npm test
 npm run check
 ./install.sh --agent-dir /tmp/pi-agent --bin-dir /tmp/pi-bin
 ```
+
+`--omit=peer` skips the pi packages, which pi provides at runtime.
 
 Tests use a mocked `fetch`; no API credentials or network access are required.
 
@@ -247,10 +282,15 @@ Tests use a mocked `fetch`; no API credentials or network access are required.
 
 ```text
 lib/digikey.mjs        shared client, normalizer, CLI
+lib/tool.mjs           shared digikey_search definition: schemas, description, run
 bin/digikey-search     executable CLI
 extensions/digikey.ts  pi tool registration
 index.ts               extension entry point for symlinked installs
+mcp/server.mjs         MCP server (stdio)
+mcp/start.sh           plugin launcher, installs dependencies on first start
+.claude-plugin/        Claude Code plugin and marketplace manifests
+.mcp.json              Claude Code MCP server declaration
 skills/                digikey-part-search skill
-install.sh             extension + CLI installer
+install.sh             pi extension, CLI and Claude Code plugin installer
 test/                  node:test tests with mocked fetch
 ```

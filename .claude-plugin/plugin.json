@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "digikey-search",
+  "version": "0.1.0",
+  "description": "Digi-Key ProductSearch v4 MCP tool and the iterative keyword → filter-options → parametric-filter skill.",
+  "author": {
+    "name": "Ben Richards"
+  },
+  "license": "MIT",
+  "keywords": [
+    "digikey",
+    "electronics",
+    "part-search"
+  ]
+}

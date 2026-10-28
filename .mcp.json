@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "digikey": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/mcp/start.sh"
+    }
+  }
+}
