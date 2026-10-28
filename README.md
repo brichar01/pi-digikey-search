@@ -94,13 +94,23 @@ Get credentials and subscribe the app to the **Product Information v4** API at
 digikey-search --keywords "ceramic capacitor" --limit 10 --format text
 digikey-search --keywords "audio codec" --min-qty 100 --sort QuantityAvailable
 digikey-search --keywords "audio codec" --manufacturer-id 296 --limit 20
-digikey-search --keywords "ceramic capacitor" --parameter '1234=<ValueId>' --parameter-category 52
+digikey-search --keywords "ceramic capacitor" --parameter '14=74515' --parameter-category 60
+digikey-search --keywords "ceramic capacitor" --format text --show-parameter-ids
 digikey-search --request request.json
 digikey-search --help
 ```
 
 The default output is normalized JSON. `--format text` prints the same readable
-summary the pi tool uses. `--raw` prints the unmodified Digi-Key response.
+summary the pi tool uses. `--show-parameter-ids` adds `parameterId`/`valueId` to
+each product's text `params:` line. `--raw` prints the unmodified Digi-Key
+response.
+
+When Digi-Key returns no `filterOptions.parameters` (common for broad keyword
+searches), the normalized response includes `productParameterHints` derived from
+`products[].parameters`. They use the same parameter/value ID namespace as the
+website filters. Use a **child category**, not a parent category, for
+`parameterCategoryId`; parent categories are rejected by the API. Product
+`category.childCategories` exposes those child IDs.
 
 `--request` reads a JSON input object, for example:
 
@@ -145,14 +155,20 @@ The tool returns:
   price, parameters, package types, URLs, and warnings
 - `filterOptions` — manufacturers, statuses, packaging, series, categories, and
   parametric filters with the IDs for the next request
+- `productParameterHints` — fallback parameter/value IDs derived from returned
+  products when `filterOptions.parameters` is empty, including child-category
+  candidates for `parameterCategoryId`
 - `appliedParametricFilters`
 - `filteredOut` — counts of marketplace/out-of-stock/obsolete/high-MOQ parts
   removed locally
 - `warnings` — aggregate NRND, MOQ, and ground-rule notices
 
-The text output is a compact summary. The full structured object is returned in
-`structuredContent`, so codemode scripts can search every filter value without
-raising display limits.
+The text output is a compact summary. It prints product-derived filter hints
+when Digi-Key does not return parametric filter options. Pass
+`showParameterIds: true` to include parameter/value IDs on each product's text
+`params:` line. The full structured object is returned in `structuredContent`,
+so codemode scripts can search every filter value without raising display
+limits.
 
 ### Codemode example
 

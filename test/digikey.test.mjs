@@ -44,6 +44,21 @@ function product(overrides = {}) {
     PhotoUrl: null,
     QuantityAvailable: 1000,
     ProductStatus: { Id: 1, Status: "Active" },
+    Category: {
+      CategoryId: 3,
+      ParentId: 0,
+      Name: "Capacitors",
+      ProductCount: 0,
+      ChildCategories: [
+        {
+          CategoryId: 60,
+          ParentId: 3,
+          Name: "Ceramic Capacitors",
+          ProductCount: 0,
+          ChildCategories: [],
+        },
+      ],
+    },
     ProductVariations: [
       {
         DigiKeyProductNumber: "296-1234-ND",
@@ -341,6 +356,52 @@ describe("normalization and ground rules", () => {
     assert.match(text, /Voltage - Rated \[parameterId=43\]/);
     assert.match(text, /50 V \(id=50/);
     assert.match(text, /Applied parametric filters: Interface: SPI/);
+    assert.equal(result.response.productParameterHints.parameters.length, 0);
+  });
+
+  test("preserves child categories and derives product parameter hints when needed", async () => {
+    const base = keywordResponse();
+    const responseWithoutParametricFilters = keywordResponse([product()], {
+      FilterOptions: {
+        ...base.FilterOptions,
+        ParametricFilters: [],
+        TopCategories: [],
+      },
+    });
+    const { fetchImpl } = makeFetch({ searchResponse: responseWithoutParametricFilters });
+    const result = await searchKeyword({ keywords: "ceramic capacitor" }, { env: ENV, fetchImpl });
+
+    assert.equal(result.response.products[0].category.categoryId, 3);
+    assert.equal(result.response.products[0].category.childCategories[0].categoryId, 60);
+    assert.equal(result.response.products[0].category.childCategories[0].name, "Ceramic Capacitors");
+
+    const hints = result.response.productParameterHints;
+    assert.match(hints.reason, /filterOptions\.parameters was empty/);
+    assert.deepEqual(hints.categories, [
+      { id: "60", name: "Ceramic Capacitors", productCount: 1 },
+    ]);
+
+    const interfaceHint = hints.parameters.find((parameter) => parameter.parameterId === 42);
+    assert.equal(interfaceHint.parameterName, "Interface");
+    assert.equal(interfaceHint.parameterType, "String");
+    assert.deepEqual(interfaceHint.categoryIds, ["60"]);
+    assert.deepEqual(interfaceHint.values, [
+      {
+        valueId: "10",
+        name: "SPI",
+        productCount: 1,
+        categoryIds: ["60"],
+      },
+    ]);
+
+    const text = formatSearchText(result.response);
+    assert.match(text, /Product-derived parametric filter hints/);
+    assert.match(text, /parameterCategoryId candidates: Ceramic Capacitors \(id=60, count=1\)/);
+    assert.match(text, /Interface \[parameterId=42\]/);
+    assert.match(text, /SPI \(id=10, count=1\)/);
+
+    const textWithIds = formatSearchText(result.response, { includeParameterIds: true });
+    assert.match(textWithIds, /Interface=SPI \[parameterId=42, valueId=10\]/);
   });
 });
 
@@ -422,6 +483,38 @@ describe("CLI", () => {
     const body = JSON.parse(calls[1].init.body);
     assert.equal(body.Limit, 5);
     assert.equal(body.FilterOptionsRequest.MarketPlaceFilter, "ExcludeMarketPlace");
+  });
+
+  test("text output can include product parameter IDs and derived hints", async () => {
+    const base = keywordResponse();
+    const { fetchImpl } = makeFetch({
+      searchResponse: keywordResponse([product()], {
+        FilterOptions: {
+          ...base.FilterOptions,
+          ParametricFilters: [],
+        },
+      }),
+    });
+    let stdout = "";
+    let stderr = "";
+    const code = await runCli(
+      ["--keywords", "codec", "--format", "text", "--show-parameter-ids"],
+      {
+        env: ENV,
+        fetchImpl,
+        stdout: (text) => {
+          stdout += `${text}\n`;
+        },
+        stderr: (text) => {
+          stderr += `${text}\n`;
+        },
+      },
+    );
+
+    assert.equal(code, 0, stderr);
+    assert.match(stdout, /Product-derived parametric filter hints/);
+    assert.match(stdout, /Interface=SPI \[parameterId=42, valueId=10\]/);
+    assert.match(stdout, /parameterCategoryId candidates: Ceramic Capacitors \(id=60/);
   });
 
   test("returns usage error without keywords", async () => {

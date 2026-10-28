@@ -69,6 +69,9 @@ The response contains:
   - `topCategories[]`: category IDs and counts (may be empty)
   - `parameters[]`: `{ parameterId, parameterName, parameterType, values[] }`
     with `{ valueId, name, productCount, rangeFilterType }` values; may be empty.
+- `productParameterHints`: when `filterOptions.parameters` is empty, candidate
+  filters derived from `products[].parameters`, plus child-category IDs for
+  `parameterCategoryId`.
 - `appliedParametricFilters`: may be empty even when filtering worked.
 - `filteredOut`: how many marketplace/out-of-stock/obsolete/high-MOQ parts the
   ground rules removed.
@@ -94,7 +97,8 @@ Find the option by name, case-insensitively, and use its ID.
   `filterOptions.series[].id`.
 - **Parametric spec**: find the parameter by `parameterName`, then OR all
   `values[].valueId`s whose names match. Values can be compound (`I2C, Serial,
-  SPI`); `Serial` alone is ambiguous.
+  SPI`); `Serial` alone is ambiguous. If `filterOptions.parameters` is empty,
+  use `productParameterHints` instead.
 
 Parametric request shape:
 
@@ -109,7 +113,10 @@ Parametric request shape:
 ```
 
 Multiple `valueIds` are OR-ed; `parameters` are AND-ed and require a
-`parameterCategoryId` (a product's broad `category.categoryId` if no `topCategories`).
+`parameterCategoryId`. Use a **child/leaf category**, never a parent: take it
+from `productParameterHints.categories`, `topCategories[].category.categoryId`,
+or `product.category.childCategories[].categoryId`. Parent categories fail with
+`Parametric Filtering Not Support at Parent Category Level`.
 
 #### Range parameters
 
@@ -127,6 +134,9 @@ filtered.
   parameters or the datasheet.
 - Narrow with manufacturer/category/series filters, then inspect. Never claim a
   part meets a spec just because a keyword matched.
+- When `filterOptions.parameters` is empty, use `productParameterHints` (or raw
+  `products[].parameters`) for candidate `parameterId`/`valueId` pairs, and use
+  a child category for `parameterCategoryId`.
 
 ### 4. Re-search with the same keywords plus filters
 
@@ -174,9 +184,9 @@ obsolete/EOL removed, NRND called out, MOQ considered.
 
 1. `digikey_search({ keywords: "ceramic capacitor", limit: 20 })` — or try
    `aluminum electrolytic capacitor` if that is the likely technology.
-2. Read `filterOptions.parameters`; find the voltage parameter (for example
-   `Voltage - Rated`). Use its `parameterId` and the `50 V`-or-higher
-   `valueId`s.
+2. Read `filterOptions.parameters`, or `productParameterHints` if empty; find the
+   voltage parameter (for example `Voltage - Rated`). Use its `parameterId` and
+   the `50 V`-or-higher `valueId`s, with a child `parameterCategoryId`.
 3. Re-search with `minQuantityAvailable: 100`, `sortField:
    "QuantityAvailable"`, and the voltage parameter filter.
 4. Report stock, MOQ, dielectric/package parameters, and any NRND/high-MOQ
@@ -198,7 +208,8 @@ The same client is available as a CLI:
 
 ```bash
 digikey-search --keywords "audio codec" --limit 20
-digikey-search --keywords "ceramic capacitor" --parameter '1234=<valueId>' --min-qty 100
+digikey-search --keywords "ceramic capacitor" --parameter '14=74515' --parameter-category 60
+digikey-search --keywords "ceramic capacitor" --format text --show-parameter-ids
 ```
 
 From a codemode script, `digikey_search` returns the full normalized object, so
@@ -206,13 +217,17 @@ you can inspect every filter value rather than the compact text summary:
 
 ```js
 const first = await tools.digikey_search({ keywords: "audio codec", limit: 20 });
-const voltage = first.filterOptions.parameters.find((p) => /voltage/i.test(p.parameterName));
+const candidates = first.filterOptions.parameters.length > 0
+  ? first.filterOptions.parameters
+  : first.productParameterHints.parameters;
+const voltage = candidates.find((p) => /voltage/i.test(p.parameterName));
 const ti = first.filterOptions.manufacturers.find((m) => /Texas Instruments/i.test(m.name));
 const refined = await tools.digikey_search({
   keywords: "audio codec",
   manufacturerIds: [ti.id],
   parameters: [{ parameterId: voltage.parameterId, valueIds: [voltage.values[0].valueId] }],
-  parameterCategoryId: first.filterOptions.topCategories[0]?.category?.categoryId,
+  parameterCategoryId: first.productParameterHints.categories[0]?.id
+    ?? first.filterOptions.topCategories[0]?.category?.categoryId,
 });
 return refined.products;
 ```

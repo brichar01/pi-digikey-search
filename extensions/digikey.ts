@@ -144,12 +144,19 @@ const DigiKeySearchParameters = Type.Object({
   currency: Type.Optional(
     Type.String({ description: "Currency code, e.g. USD. Defaults to DIGIKEY_CURRENCY or USD." }),
   ),
+  showParameterIds: Type.Optional(
+    Type.Boolean({
+      default: false,
+      description:
+        "Include parameterId/valueId next to each product parameter in the compact text output. Structured output always includes them.",
+    }),
+  ),
   maxFilterParameters: Type.Optional(
     Type.Integer({
       minimum: 0,
       default: 60,
       description:
-        "Model-facing text limit for parametric filter groups (0 = all). The full set is always in structuredContent for codemode.",
+        "Model-facing text limit for parametric filter groups and product-derived hints (0 = all). The full set is always in structuredContent for codemode.",
     }),
   ),
   filterValuesPerParameter: Type.Optional(
@@ -218,6 +225,7 @@ const digikeySearchTool = defineTool({
       products: Type.Array(Type.Any()),
       exactMatches: Type.Array(Type.Any()),
       filterOptions: Type.Object({}, { additionalProperties: true }),
+      productParameterHints: Type.Object({}, { additionalProperties: true }),
       appliedParametricFilters: Type.Array(Type.Any()),
       notes: Type.Array(Type.String()),
     },
@@ -238,6 +246,7 @@ const digikeySearchTool = defineTool({
       let text = formatSearchText(result.response, {
         parameterLimit: params.maxFilterParameters ?? 60,
         valuesPerParameter: params.filterValuesPerParameter ?? 20,
+        includeParameterIds: params.showParameterIds ?? false,
       });
       if (params.detail === "full") {
         text += `\n\nFull normalized result JSON:\n${JSON.stringify(result.response, null, 2)}`;
